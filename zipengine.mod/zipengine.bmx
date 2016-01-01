@@ -145,12 +145,12 @@ Function unzReadCurrentFile:Int( zipFilePtr:Byte Ptr, buffer:Byte Ptr, size:Int 
 Rem
 bbdoc: Close current file
 End Rem
-Function unzCloseCurrentFile( zipFilePtr:Byte Ptr )
+Function unzCloseCurrentFile:Int( zipFilePtr:Byte Ptr )
 
 Rem
 bbdoc: Close unzip zip file
 End Rem
-Function unzClose( zipFilePtr:Byte Ptr )
+Function unzClose:Int( zipFilePtr:Byte Ptr )
 
 Rem
   Give the current position in uncompressed data
@@ -500,7 +500,7 @@ EndType
 
 Type TZipFileList
 
-	Field zipFile:TStream
+	Field ZipFile:TStream
 	Field FileList:TList 
 	Field IgnoreCase:Int
 	Field IgnorePaths:Int
@@ -516,7 +516,7 @@ Type TZipFileList
 		If Not file Then Return Null
 		
 		Local retval:TZipFileList=New TZipFileList
-		retval.zipFile = file
+		retval.ZipFile = file
 		retval.IgnoreCase = bIgnoreCase
 		retval.IgnorePaths = bIgnorePaths
 
@@ -582,10 +582,10 @@ Type TZipFileList
 		bbdoc: Scans the central header for files.  Returns true if successful.
 	End Rem
 	Method ScanCentralHeader:Int()
-		SeekStream(zipFile, 0)
+		SeekStream(ZipFile, 0)
 		
 		' first check to see if its even a valid ZIP file
-		If ReadInt(zipFile) <> $04034b50 Then 
+		If ReadInt(ZipFile) <> $04034b50 Then 
 			DebugLog("Invalid ZIP file!")
 			Return False
 		EndIf
@@ -593,19 +593,19 @@ Type TZipFileList
 		Local header_start:Int = 0
 		
 		' jump to the end
-		SeekStream(zipFile, StreamSize(zipFile) - 4)
+		SeekStream(ZipFile, StreamSize(ZipFile) - 4)
 		
 		' seek the end central directory structure
-		While Not StreamPos(zipFile) = 0
-			Local sig:Int = ReadInt(zipFile)
+		While Not StreamPos(ZipFile) = 0
+			Local sig:Int = ReadInt(ZipFile)
 			If sig = $06054b50 Then
 				' jump to start of central dir location
-				SeekStream(zipFile, StreamPos(zipFile) + 12)
-				header_start = ReadInt(zipFile)
+				SeekStream(ZipFile, StreamPos(ZipFile) + 12)
+				header_start = ReadInt(ZipFile)
 				Exit				
 			Else
 				' rewind 3 bytes and try again
-				SeekStream(zipFile, StreamPos(zipFile) - 5)
+				SeekStream(ZipFile, StreamPos(ZipFile) - 5)
 			EndIf
 		EndWhile
 	
@@ -616,11 +616,11 @@ Type TZipFileList
 		EndIf
 		
 		' seek to the start of the central directory
-		SeekStream(zipFile, header_start)
+		SeekStream(ZipFile, header_start)
 		
-		While True And Not Eof(zipFile)
+		While True And Not Eof(ZipFile)
 			Local entry:SZipFileEntry = SZipFileEntry.Create()
-			If entry.header.fill(zipFile) Then
+			If entry.header.fill(ZipFile) Then
 				FileList.AddLast(entry)
 
 				' read filename
@@ -817,14 +817,14 @@ Type TZipEngineStreamFactory Extends TStreamFactory
 			If parts.Dimensions()[0] < 2 Or parts.Dimensions()[0] > 3 Then
 				DebugLog("Invalid syntax for URL (ex. zipe::zipfilename::file_in_zip::password)")
 			Else 			
-				Local zipfile:String = parts[0]
+				Local ZipFile:String = parts[0]
 				Local filename:String = parts[1]
 				Local password:String = Null
 				If parts.Dimensions()[0] = 3 Then 
 					password = parts[2]
 				EndIf
 				
-				stream = TZipEStream.Create(zipfile, filename, False, password)
+				stream = TZipEStream.Create(ZipFile, filename, False, password)
 			EndIf			
 		EndIf
 		
@@ -852,18 +852,18 @@ Type TZipEStream Extends TStream
 ?
 	Field reader:ZipReader = Null
 
-	Function Create:TZipEStream(zipfile:String, filename:String, case_sensitive:Int = False, password:String = Null)
+	Function Create:TZipEStream(ZipFile:String, filename:String, case_sensitive:Int = False, password:String = Null)
 		Local stream:TZipEStream = New TZipEStream
 
 		stream.reader = New ZipReader
-		If stream.reader.OpenZip(zipfile) Then
+		If stream.reader.OpenZip(ZipFile) Then
 			stream.filename = filename
 			stream.case_sensitive = case_sensitive
 			stream.password = password
 			
 			If Not stream.find_file(True) Then stream = Null			
 		Else 
-			DebugLog("unable to open zip " + zipfile)
+			DebugLog("unable to open zip " + ZipFile)
 			stream = Null
 		EndIf
 		
