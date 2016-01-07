@@ -9,14 +9,20 @@ bbdoc: Zip Engine
 End Rem
 Module gman.zipengine
 
-ModuleInfo "Version: 2.11"
+ModuleInfo "Version: 2.16"
 ModuleInfo "Author: gman, Bruce A Henderson"
 ModuleInfo "License: Public Domain"
 ModuleInfo "Credit: This mod makes use if the ZLib C functions by Gilles Vollant (http://www.winimage.com/zLibDll/unzip.html)"
 ModuleInfo "Credit: This mod was initially created by Thomas Mayer"
 ModuleInfo "Credit: Smurftra for his DateTime functions (http://www.blitzbasic.com/codearcs/codearcs.php?code=1726)"
-ModuleInfo "History: 2.11"
+ModuleInfo "History: 2.16"
 ModuleInfo "History: Updated for bmx-ng."
+ModuleInfo "History: 2012/03/23 GG - Fixed issue with CRC check found by JoshK."
+ModuleInfo "History: 2010/07/28 GG - Changed to use utime instead of _utime to support MacOSX."
+ModuleInfo "History: 2010/07/27 GG - Added timestamping of extracted files."
+ModuleInfo "History: 2010/07/26 GG - Fixed issue with trying to extract to an in use file.  Added return value to ExtractFileToDisk."
+ModuleInfo "History: 2010/07/26 GG - Fixed issue with extracting directories to disk"
+ModuleInfo "History: 2010/06/30 GG - Fixed issue with AddFileToDest where destination filename was not being used"
 ModuleInfo "History: 2009/02/27 GG - Updated central directory scan routine to be faster"
 ModuleInfo "History: 2009/02/15 GG - converted to scan central headers instead of local headers"
 ModuleInfo "History: 2009/02/15 GG - Added stream wrapper for ZipEngine"
@@ -40,44 +46,105 @@ Import "unzip.c"
 Import "ioapi.c"
 Import "bmxsupport.c"
 
+Rem 
+CRC functions for passwords
+EndRem
+Global crc_table:Int[256]
+
+crc_init()
+
+Function crc_init()
+	Local i:Int
+	Local j:Int
+	Local value:Int
+	
+	For i=0 To 255
+		value=i
+		For j=0 To 7
+			If (value & $1) Then 
+				value=(value Shr 1) ~ $EDB88320
+			Else
+				value=(value Shr 1)
+			EndIf
+		Next
+		crc_table[i]=value
+	Next
+EndFunction
+
+Function GetStreamCRC32:Int(stream:TStream)
+	Local bbyte:Int
+	Local crc:Int
+	Local pos:Int=stream.pos()
+	
+	crc=$FFFFFFFF
+	While Not Eof(stream)
+		bbyte=ReadByte(stream)
+		crc=(crc Shr 8) ~ crc_table[bbyte ~ (crc & $FF)]
+	Wend
+	stream.seek pos
+	Return ~crc
+EndFunction
+
 Rem
 bbdoc: Append Modes
 End Rem
-Const APPEND_STATUS_CREATE:Int			= 0
-Const APPEND_STATUS_CREATEAFTER:Int		= 1
-Const APPEND_STATUS_ADDINZIP:Int		= 2
+Const APPEND_STATUS_CREATE:Int         = 0
+Const APPEND_STATUS_CREATEAFTER:Int    = 1
+Const APPEND_STATUS_ADDINZIP:Int       = 2
 
 Rem
 bbdoc: Compression methods
 End Rem
-Const Z_DEFLATED:Int					= 8
+Const Z_DEFLATED:Int                   = 8
 
 Rem
 bbdoc: Compression levels
 End Rem
-Const Z_NO_COMPRESSION:Int				= 0
-Const Z_BEST_SPEED:Int				= 1
-Const Z_BEST_COMPRESSION:Int			= 9
-Const Z_DEFAULT_COMPRESSION:Int		= -1
+Const Z_NO_COMPRESSION:Int             = 0
+Const Z_BEST_SPEED:Int                 = 1
+Const Z_BEST_COMPRESSION:Int           = 9
+Const Z_DEFAULT_COMPRESSION:Int        = -1
 
 Rem
 bbdoc: Compare modes
 End Rem
-Const UNZ_CASE_CHECK:Int				= 1
-Const UNZ_NO_CASE_CHECK:Int			= 2
+Const UNZ_CASE_CHECK:Int               = 1
+Const UNZ_NO_CASE_CHECK:Int            = 2
 
 Rem
 bbdoc: Result Codes
 End Rem
-Const UNZ_OK:Int						= 0
-Const UNZ_END_OF_LIST_OF_FILE:Int		= -100
-Const UNZ_EOF:Int						= 0
-Const UNZ_PARAMERROR:Int				= -102
-Const UNZ_BADZIPFILE:Int				= -103
-Const UNZ_INTERNALERROR:Int			= -104
-Const UNZ_CRCERROR:Int				= -105
+Const UNZ_OK:Int                       = 0
+Const UNZ_END_OF_LIST_OF_FILE:Int      = -100
+Const UNZ_EOF:Int                      = 0
+Const UNZ_PARAMERROR:Int               = -102
+Const UNZ_BADZIPFILE:Int               = -103
+Const UNZ_INTERNALERROR:Int            = -104
+Const UNZ_CRCERROR:Int                 = -105
+
+Const ZLIB_FILEFUNC_SEEK_CUR:Int = 1
+Const ZLIB_FILEFUNC_SEEK_END:Int = 2
+Const ZLIB_FILEFUNC_SEEK_SET:Int = 0
+
+Const ZLIB_FILEFUNC_MODE_READ:Int = 1
+Const ZLIB_FILEFUNC_MODE_WRITE:Int = 2
+
+Const ZLIB_FILEFUNC_MODE_READWRITEFILTER:Int = 3
+Const ZLIB_FILEFUNC_MODE_EXISTING:Int = 4
+Const ZLIB_FILEFUNC_MODE_CREATE:Int = 8
 
 Extern
+
+Function bmx_fill_fopen_filefunc( ..
+	bind_bmx_open_file_func:Byte Ptr(opaque:Byte Ptr, filename:Byte Ptr, Mode:Int), ..
+	bind_bmx_read_file_func:Long(opaque:Byte Ptr, stream:Byte Ptr, buf:Byte Ptr, size:Long), ..
+	bind_bmx_write_file_func:Long(opaque:Byte Ptr, stream:Byte Ptr, buf:Byte Ptr, size:Long), ..
+	bind_bmx_tell_file_func:Long(opaque:Byte Ptr, stream:Byte Ptr), ..
+	bind_bmx_seek_file_func:Long(stream:Byte Ptr, offset:Long, origin:Int), ..
+	bind_bmx_close_file_func:Int(opaque:Byte Ptr, stream:Byte Ptr), ..
+	bind_bmx_error_file_func:Int(opaque:Byte Ptr, stream:Byte Ptr) ..
+)
+
 
 Rem
 bbdoc: Open new zip file (returns zipFile pointer)
@@ -105,7 +172,7 @@ Function zipOpenNewFileWithPassword( zipFilePtr:Byte Ptr, fileName$z, zip_filein
 							extrafield_local:Byte Ptr, size_extrafield_local:Int, ..
 							extrafield_global:Byte Ptr, size_extrafield_global:Int, ..
 							comment$z, compressionMethod:Int, ..
-							level:Int, password$z )
+							level:Int, password$z, crc:Long )
 
 Rem
 bbdoc: Write into a zip file
@@ -113,9 +180,17 @@ End Rem
 Function zipWriteInFileInZip( zipFilePtr:Byte Ptr, buffer:Byte Ptr, bufferLength:Int )
 
 Rem
+bbdoc: Write UTF8 into a zip file
+End Rem
+
+Function zipWriteInFileInZipUTF8( zipFilePtr:Byte Ptr, buffer:Byte Ptr, bufferLength:Int )
+
+Rem
 bbdoc: Open a zip file for unzip
 End Rem
 Function unzOpen:Byte Ptr( zipFileName$z )
+
+Function bmx_unzOpen2:Byte Ptr( zipFileName$z)
 
 Rem
 bbdoc: Return status of desired file and sets the unzipped focus to it
@@ -153,7 +228,7 @@ End Rem
 Function unzClose:Int( zipFilePtr:Byte Ptr )
 
 Rem
-  Give the current position in uncompressed data
+bbdoc: Give the current position in uncompressed data
 EndRem
 ?bmxng
 Function unztell:Long( zipFilePtr:Byte Ptr )
@@ -162,19 +237,24 @@ Function unztell:Int( zipFilePtr:Byte Ptr )
 ?
 
 Rem
-  return 1 if the end of file was reached, 0 elsewhere
+bbdoc: return 1 if the end of file was reached, 0 elsewhere
 EndRem
 Function unzeof:Int( zipFilePtr:Byte Ptr )
 
 Rem 
-	Get the current file offset
+bbdoc: Get the current file offset
 EndRem
 Function unzGetOffset:Long( zipFilePtr:Byte Ptr)
 
 Rem
-	Set the current file offset
+bbdoc: Set the current file offset
 EndRem
 Function unzSetOffset:Int( zipFilePtr:Byte Ptr, pos:Long )
+
+Rem
+bbdoc: Sets the modified and access date of a file.  Returns 0 on success or errno.
+EndRem
+Function bmx_set_file_mod_date_time:Int(filename$z, hours:Int, mins:Int, secs:Int, day:Int, Month:Int, year:Int)
 
 EndExtern
 
@@ -276,6 +356,13 @@ Type ZipWriter Extends ZipFile
 		bbdoc: Adds a file to the zip
 	End Rem
 	Method AddFile( fileName:String, password:String="" )
+		Self.AddFileToDest(fileName, fileName, password)		
+	EndMethod
+
+	Rem
+		bbdoc: Adds a file to the zip using a different path and/or filename
+	End Rem
+	Method AddFileToDest( fileName:String, destFile:String, password:String = "" )
 		If ( m_zipFile ) Then
 			Local inFile:TStream = OpenFile( fileName )
 			
@@ -303,16 +390,16 @@ Type ZipWriter Extends ZipFile
 
 				If password.length=0
 					' Open the test.txt as a new entry inside the zip
-					zipOpenNewFileInZip( m_zipFile, fileName, BankBuf(info_b), Null, Null, Null, Null, Null, ..
+					zipOpenNewFileInZip( m_zipFile, destFile, BankBuf(info_b), Null, Null, Null, Null, Null, ..
 										Z_DEFLATED, m_compressionLevel )
 				Else
 					' Open the test.txt as a new entry inside the zip
-					zipOpenNewFileWithPassword( m_zipFile, fileName, BankBuf(info_b), Null, Null, Null, Null, Null, ..
-										Z_DEFLATED, m_compressionLevel, password )
+					zipOpenNewFileWithPassword( m_zipFile, destFile, BankBuf(info_b), Null, Null, Null, Null, Null, ..
+										Z_DEFLATED, m_compressionLevel, password, GetStreamCRC32(inFile) )
 				EndIf
 
 				' Write the file into the zip
-				zipWriteInFileInZip( m_zipFile, LoadByteArray(inFile), inSize )
+				zipWriteInFileInZipUTF8( m_zipFile, LoadByteArray(inFile), inSize )
 				
 				' add this file to the file list
 				Local entry:SZipFileEntry=SZipFileEntry.Create()
@@ -368,11 +455,11 @@ Type ZipWriter Extends ZipFile
 				Else
 					' Open the test.txt as a new entry inside the zip
 					zipOpenNewFileWithPassword( m_zipFile, fileName, BankBuf(info_b), Null, Null, Null, Null, Null, ..
-										Z_DEFLATED, m_compressionLevel, password )
+										Z_DEFLATED, m_compressionLevel, password, GetStreamCRC32(inFile) )
 				EndIf
 		
 				' Write the file into the zip
-				zipWriteInFileInZip( m_zipFile, LoadByteArray(inFile), inSize )
+				zipWriteInFileInZipUTF8( m_zipFile, LoadByteArray(inFile), inSize )
 				
 				' add this file to the file list
 				Local entry:SZipFileEntry=SZipFileEntry.Create()
@@ -391,7 +478,8 @@ Type ZipWriter Extends ZipFile
 	End Rem
 	Method CloseZip( description:String = "" )
 		If ( m_zipFile ) Then
-			zipClose( m_zipFile, description )				
+			zipClose( m_zipFile, description )
+			m_zipFile = Null
 		End If
 		setName("") ' clear out the name
 		clearFileList() ' clear out the header info
@@ -454,17 +542,55 @@ Type ZipReader Extends ZipFile
 	End Method
 
 	Rem
-		bbdoc: Extracts a file from the zip to disk
+		bbdoc: Extracts a file or directory from the zip to disk
 	End Rem
-	Method ExtractFileToDisk( fileName:String, outputFileName:String, caseSensitive:Int = False, password:String="" )
-		Local outFile:TStream = WriteFile ( outputFileName )
-		Local extractedFile:TRamStream = ExtractFile ( fileName, caseSensitive, password )
+	Method ExtractFileToDisk:Int( fileName:String, outputFileName:String, caseSensitive:Int = False, password:String="" )
+		Local success:Int = False
+		Local info:SZipFileEntry = Self.getFileInfoByName(fileName)
+		Local set_timestamp:Int = False
+				
+		If info.IsDirectory() ' if this is a directory
+			If FileType(outputFileName) = 0 ' create the directory if it doesnt exist
+				success = CreateDir(outputFileName, True)
+				set_timestamp = True
+			Else ' already exists, we are good
+				success = True
+			EndIf
+		Else
+			' create the directory if it doesnt exist				
+			If FileType(ExtractDir(outputFileName)) = 0 
+				CreateDir(ExtractDir(outputFileName), True)
+			EndIf
+			
+			Local outFile:TStream = WriteFile ( outputFileName )
+			If outFile
+				Local extractedFile:TRamStream = ExtractFile ( fileName, caseSensitive, password )
+				
+				If ( outFile And extractedFile ) Then
+					CopyStream( extractedFile, outFile )
+				End If 
 		
-		If ( outFile And extractedFile ) Then
-			CopyStream( extractedFile, outFile )
-		End If 
-
-		CloseStream( outFile )
+				CloseStream( outFile )
+				
+				success = True				
+				set_timestamp = True
+			EndIf
+		EndIf
+		
+		If set_timestamp
+			' update the mod timestamp
+			bmx_set_file_mod_date_time( ..
+				outputFileName, ..
+				info.header.LastModDateTime.tm_hour, ..
+				info.header.LastModDateTime.tm_min, ..
+				info.header.LastModDateTime.tm_sec, ..
+				info.header.LastModDateTime.tm_mday, ..
+				info.header.LastModDateTime.tm_mon, ..
+				info.header.LastModDateTime.tm_year ..
+			)		
+		EndIf
+				
+		Return success
 	End Method
 
 	Rem
@@ -472,7 +598,8 @@ Type ZipReader Extends ZipFile
 	End Rem
 	Method CloseZip()
 		If ( m_zipFile ) Then
-			unzClose( m_zipFile )	
+			unzClose( m_zipFile )
+			m_zipFile = Null
 		End If
 		setName("") ' clear out the name
 		clearFileList() ' clear out the header info
@@ -488,7 +615,11 @@ Type ZipRamStream Extends TRamStream
 	
 	Function ZCreate:TRamStream( size:Int,readable:Int,writeable:Int )
 		Local stream:ZipRamStream=New ZipRamStream
-		stream._data=New Byte[size]
+		If size Then
+			stream._data=New Byte[size]
+		Else
+			stream._data=New Byte[1]
+		End If
 		stream._pos=0
 		stream._size=size
 		stream._buf=Varptr(stream._data[0])
@@ -674,6 +805,18 @@ EndType
 ' header
 Const ZIP_INFO_IN_DATA_DESCRIPTOR:Short = $0008  
 
+Type tm
+    Field tm_sec:Int	' seconds after the minute - [0,59] 
+    Field tm_min:Int	' minutes after the hour - [0,59] 
+    Field tm_hour:Int   	' hours since midnight - [0,23] 
+    Field tm_mday:Int   	' day of the month - [1,31] 
+    Field tm_mon:Int    	' months since January - [0,11] 
+    Field tm_year:Int   	' years - [1980..2044] 
+    Field tm_wday:Int   	' Days since Sunday (0-6) 
+    Field tm_yday:Int   	' Days since Jan. 1: 0-365 
+    Field tm_isdst:Int   ' +1 Daylight Savings Time, 0 No DST, -1 don't know 
+EndType
+
 '/* tm_zip contain date/time info */
 Type tm_zip
     Field tm_sec:Int	'/* seconds after the minute - [0,59] */
@@ -730,7 +873,7 @@ Type SZIPCentralFileHeader
 	Field CompressionMethod:Short
 	Field LastModFileTime:Short
 	Field LastModFileDate:Short	
-	Field DataDescriptor:SZIPFileDataDescriptor
+	Field DataDescriptor:SZIPFileDataDescriptor = Null
 	Field FilenameLength:Short
 	Field ExtraFieldLength:Short
 	Field CommentLength:Short
@@ -741,6 +884,7 @@ Type SZIPCentralFileHeader
 	Field FileName:String
 	Field ExtraField:String
 	Field FileComment:String
+	Field LastModDateTime:tm = Null
 	
 	Method New()
 		DataDescriptor=New SZIPFileDataDescriptor
@@ -769,6 +913,14 @@ Type SZIPCentralFileHeader
 		FileName = ReadString(data, FilenameLength)
 		ExtraField = ReadString(data, ExtraFieldLength)
 		FileComment = ReadString(data, CommentLength)
+		LastModDateTime = New tm
+		' code from: http://groups.google.com/group/comp.os.msdos.programmer/browse_thread/thread/7df01550537635b0
+		LastModDateTime.tm_sec = ((LastModFileTime & $1F) * 2)
+		LastModDateTime.tm_min = ((LastModFileTime Shr 5) & $3F)
+		LastModDateTime.tm_hour = (LastModFileTime Shr 11)
+		LastModDateTime.tm_mday = (LastModFileDate & $1F)
+		LastModDateTime.tm_mon = ((LastModFileDate Shr 5) & $0F)
+		LastModDateTime.tm_year = (((LastModFileDate Shr 9) & $7F) + 1980)
 		
 		Return True
 	EndMethod
@@ -786,6 +938,10 @@ Type SZipFileEntry
 
 	Method New()
 		header=New SZIPCentralFileHeader
+	EndMethod
+
+	Method IsDirectory:Int()
+		Return header.ExternalFileAttributes = 16 And header.DataDescriptor.UncompressedSize = 0
 	EndMethod
 
 	Method Less:Int(other:SZipFileEntry)
@@ -957,7 +1113,10 @@ Type TZipEStream Extends TStream
 	EndMethod
 
 	Method Close:Int()
-		If reader Then reader.CloseZip()
+		If reader Then
+			reader.CloseZip()
+			reader = Null
+		EndIf
 	EndMethod
 
 ?bmxng
