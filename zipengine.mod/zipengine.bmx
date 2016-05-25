@@ -9,13 +9,16 @@ bbdoc: Zip Engine
 End Rem
 Module gman.zipengine
 
-ModuleInfo "Version: 2.16"
+ModuleInfo "Version: 2.17ng"
 ModuleInfo "Author: gman, Bruce A Henderson"
 ModuleInfo "License: Public Domain"
 ModuleInfo "Credit: This mod makes use if the ZLib C functions by Gilles Vollant (http://www.winimage.com/zLibDll/unzip.html)"
 ModuleInfo "Credit: This mod was initially created by Thomas Mayer"
 ModuleInfo "Credit: Smurftra for his DateTime functions (http://www.blitzbasic.com/codearcs/codearcs.php?code=1726)"
-ModuleInfo "History: 2.16"
+
+ModuleInfo "History: 2.17ng"
+ModuleInfo "History: NG overload support."
+ModuleInfo "History: 2.16ng"
 ModuleInfo "History: Updated for bmx-ng."
 ModuleInfo "History: 2012/03/23 GG - Fixed issue with CRC check found by JoshK."
 ModuleInfo "History: 2010/07/28 GG - Changed to use utime instead of _utime to support MacOSX."
@@ -399,7 +402,7 @@ Type ZipWriter Extends ZipFile
 				EndIf
 
 				' Write the file into the zip
-				zipWriteInFileInZipUTF8( m_zipFile, LoadByteArray(inFile), inSize )
+				zipWriteInFileInZipUTF8( m_zipFile, LoadByteArray(inFile), Int(inSize) )
 				
 				' add this file to the file list
 				Local entry:SZipFileEntry=SZipFileEntry.Create()
@@ -459,7 +462,7 @@ Type ZipWriter Extends ZipFile
 				EndIf
 		
 				' Write the file into the zip
-				zipWriteInFileInZipUTF8( m_zipFile, LoadByteArray(inFile), inSize )
+				zipWriteInFileInZipUTF8( m_zipFile, LoadByteArray(inFile), Int(inSize) )
 				
 				' add this file to the file list
 				Local entry:SZipFileEntry=SZipFileEntry.Create()
@@ -1125,7 +1128,7 @@ Type TZipEStream Extends TStream
 	Method Read:Int(buf:Byte Ptr, count:Int)
 ?
 		If Not Self.Eof() Then
-			Return unzReadCurrentFile(reader.m_zipFile, buf, count)
+			Return unzReadCurrentFile(reader.m_zipFile, buf, Int(count))
 		Else 
 			Return 0
 		EndIf		
