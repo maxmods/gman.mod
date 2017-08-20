@@ -1112,10 +1112,10 @@ Type TZipEStream Extends TStream
 		Return Self.Pos()
 	EndMethod
 
-	Method Flush:Int()
+	Method Flush()
 	EndMethod
 
-	Method Close:Int()
+	Method Close()
 		If reader Then
 			reader.CloseZip()
 			reader = Null
