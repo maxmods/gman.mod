@@ -44,6 +44,7 @@ ModuleInfo "History: 2005/11/14 GG - updated to be compatible with BMAX v1.12"
 Import Pub.ZLib
 Import BRL.RamStream
 Import BRL.System
+Import BRL.LinkedList
 Import "zip.c"
 Import "unzip.c"
 Import "ioapi.c"
