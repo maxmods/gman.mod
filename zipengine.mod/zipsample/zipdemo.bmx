@@ -24,6 +24,7 @@ Function Main()
 	' not wish to append
 	If ( zwObject.OpenZip("data.zip", False) ) Then
 		zwObject.AddFile("testdata.txt")
+		zwObject.AddFile("테스트_데이터.txt")
 		zwObject.AddFile("zipdemo.bmx")
 		zwObject.CloseZip()
 	End If
@@ -33,6 +34,7 @@ Function Main()
 	' a file
 	If ( zrObject.OpenZip("data.zip") ) Then
 		zrObject.ExtractFileToDisk("testdata.txt", "extracted_testdata.txt")
+		zrObject.ExtractFileToDisk("테스트_데이터.txt", "extracted_testdata2.txt")
 		zrObject.ExtractFileToDisk("zipdemo.bmx", "extracted_zipdemo.bmx")
 		zrObject.CloseZip()
 	End If
@@ -52,6 +54,7 @@ Function Main()
 	' not wish to append
 	If ( zwObject.OpenZip("data_pass.zip", False) ) Then
 		zwObject.AddFile("testdata.txt", "gman")
+		zwObject.AddFile("테스트_데이터.txt", "gman")
 		zwObject.AddFile("zipdemo.bmx", "gman")
 		zwObject.CloseZip()
 	End If
@@ -72,6 +75,7 @@ Function Main()
 		Next
 
 		zrObject.ExtractFileToDisk("testdata.txt", "extracted_testdata_pass.txt", False, "gman")
+		zrObject.ExtractFileToDisk("테스트_데이터.txt", "extracted_testdata_pass2.txt", False, "gman")
 		zrObject.ExtractFileToDisk("zipdemo.bmx", "extracted_zipdemo_pass.bmx", False, "gman")
 		zrObject.CloseZip()
 	End If
@@ -103,7 +107,13 @@ Function Main()
 	' Stream Wrapper Example 1
 	Local zipstream:TStream = OpenStream("zipe::data_pass.zip::testdata_stream.txt::gman")
 	If zipstream Then 
-		Print("stream size: " + zipstream.Size())
+		Print("stream size 1: " + zipstream.Size())
+	EndIf
+	
+	' Stream Wrapper Example 2
+	zipstream = OpenStream("zipe::data_pass.zip::테스트_데이터.txt::gman")
+	If zipstream Then 
+		Print("stream size 2: " + zipstream.Size())
 	EndIf
 	
 End Function

@@ -153,30 +153,30 @@ Function bmx_fill_fopen_filefunc( ..
 Rem
 bbdoc: Open new zip file (returns zipFile pointer)
 End Rem
-Function zipOpen:Byte Ptr( fileName$z, append:Int )
+Function zipOpen:Byte Ptr( fileName:Byte Ptr, append:Int )
 
 Rem
 bbdoc: Closes an open zip file
 End Rem
-Function zipClose( zipFilePtr:Byte Ptr, archiveName$z )
+Function zipClose( zipFilePtr:Byte Ptr, archiveName:Byte Ptr )
 
 Rem
 bbdoc: Open a file inside the zip file
 End Rem
-Function zipOpenNewFileInZip( zipFilePtr:Byte Ptr, fileName$z, zip_fileinfo:Byte Ptr, ..
+Function zipOpenNewFileInZip( zipFilePtr:Byte Ptr, fileName:Byte Ptr, zip_fileinfo:Byte Ptr, ..
 							extrafield_local:Byte Ptr, size_extrafield_local:Int, ..
 							extrafield_global:Byte Ptr, size_extrafield_global:Int, ..
-							comment$z, compressionMethod:Int, ..
+							comment:Byte Ptr, compressionMethod:Int, ..
 							level:Int )
 							
 Rem
 bbdoc: Open a file inside the zip file using a password
 End Rem
-Function zipOpenNewFileWithPassword( zipFilePtr:Byte Ptr, fileName$z, zip_fileinfo:Byte Ptr, ..
+Function zipOpenNewFileWithPassword( zipFilePtr:Byte Ptr, fileName:Byte Ptr, zip_fileinfo:Byte Ptr, ..
 							extrafield_local:Byte Ptr, size_extrafield_local:Int, ..
 							extrafield_global:Byte Ptr, size_extrafield_global:Int, ..
-							comment$z, compressionMethod:Int, ..
-							level:Int, password$z, crc:Long )
+							comment:Byte Ptr, compressionMethod:Int, ..
+							level:Int, password:Byte Ptr, crc:Long )
 
 Rem
 bbdoc: Write into a zip file
@@ -192,14 +192,14 @@ Function zipWriteInFileInZipUTF8( zipFilePtr:Byte Ptr, buffer:Byte Ptr, bufferLe
 Rem
 bbdoc: Open a zip file for unzip
 End Rem
-Function unzOpen:Byte Ptr( zipFileName$z )
+Function unzOpen:Byte Ptr( zipFileName:Byte Ptr )
 
-Function bmx_unzOpen2:Byte Ptr( zipFileName$z)
+Function bmx_unzOpen2:Byte Ptr( zipFileName:Byte Ptr)
 
 Rem
 bbdoc: Return status of desired file and sets the unzipped focus to it
 End Rem
-Function unzLocateFile:Int( zipFilePtr:Byte Ptr, fileName$z, caseCheck:Int )
+Function unzLocateFile:Int( zipFilePtr:Byte Ptr, fileName:Byte Ptr, caseCheck:Int )
 
 Rem
 bbdoc: Opens the currently focused file
@@ -209,7 +209,7 @@ Function unzOpenCurrentFile:Int( zipFilePtr:Byte Ptr )
 Rem
 bbdoc: Opens the currently focused file using a password
 End Rem
-Function unzOpenCurrentFilePassword:Int(file:Byte Ptr, password$z)
+Function unzOpenCurrentFilePassword:Int(file:Byte Ptr, password:Byte Ptr)
 
 Rem
 bbdoc: Gets info about the current file
@@ -258,9 +258,15 @@ Function unzSetOffset:Int( zipFilePtr:Byte Ptr, pos:Long )
 Rem
 bbdoc: Sets the modified and access date of a file.  Returns 0 on success or errno.
 EndRem
-Function bmx_set_file_mod_date_time:Int(filename$z, hours:Int, mins:Int, secs:Int, day:Int, Month:Int, year:Int)
+Function bmx_set_file_mod_date_time:Int(filename:Byte Ptr, hours:Int, mins:Int, secs:Int, day:Int, Month:Int, year:Int)
 
 EndExtern
+
+?not bmxng
+Function ReadString:String( stream:TStream,length:Int, asUTF8:Int )
+	Return stream.ReadString( length )
+End Function
+?
 
 Type ZipFile Abstract
 	Field m_name:String
@@ -332,11 +338,13 @@ Type ZipWriter Extends ZipFile
 		bbdoc: Opens a zip file for writing
 	End Rem
 	Method OpenZip:Int( name:String, append:Int )
+		Local n:Byte Ptr = name.ToUTF8String()
 		If ( append ) Then
-			m_zipFile = zipOpen( name, APPEND_STATUS_ADDINZIP )
+			m_zipFile = zipOpen( n, APPEND_STATUS_ADDINZIP )
 		Else
-			m_zipFile = zipOpen( name, APPEND_STATUS_CREATE )
+			m_zipFile = zipOpen( n, APPEND_STATUS_CREATE )
 		End If
+		MemFree(n)
 		
 		If ( m_zipFile ) Then
 			setName(name)  ' store the name
@@ -391,16 +399,20 @@ Type ZipWriter Extends ZipFile
 
 				' create the bank for passing the structure to the C func
 				Local info_b:TBank=info.getBank()
+				Local d:Byte Ptr = destFile.ToUTF8String()
 
 				If password.length=0
 					' Open the test.txt as a new entry inside the zip
-					zipOpenNewFileInZip( m_zipFile, destFile, BankBuf(info_b), Null, Null, Null, Null, Null, ..
+					zipOpenNewFileInZip( m_zipFile, d, BankBuf(info_b), Null, Null, Null, Null, Null, ..
 										Z_DEFLATED, m_compressionLevel )
 				Else
+					Local p:Byte Ptr = password.ToUTF8String()
 					' Open the test.txt as a new entry inside the zip
-					zipOpenNewFileWithPassword( m_zipFile, destFile, BankBuf(info_b), Null, Null, Null, Null, Null, ..
+					zipOpenNewFileWithPassword( m_zipFile, d, BankBuf(info_b), Null, Null, Null, Null, Null, ..
 										Z_DEFLATED, m_compressionLevel, password, GetStreamCRC32(inFile) )
+					MemFree(p)
 				EndIf
+				MemFree(d)
 
 				' Write the file into the zip
 				zipWriteInFileInZipUTF8( m_zipFile, LoadByteArray(inFile), Int(inSize) )
@@ -451,16 +463,20 @@ Type ZipWriter Extends ZipFile
 				
 				' create the bank for passing the structure to the C func
 				Local info_b:TBank=info.getBank()
+				Local f:Byte Ptr = fileName.ToUTF8String()
 
 				If password.length=0
 					' Open the test.txt as a new entry inside the zip
-					zipOpenNewFileInZip( m_zipFile, fileName, BankBuf(info_b), Null, Null, Null, Null, Null, ..
+					zipOpenNewFileInZip( m_zipFile, f, BankBuf(info_b), Null, Null, Null, Null, Null, ..
 										Z_DEFLATED, m_compressionLevel )
 				Else
+					Local p:Byte Ptr = password.ToUTF8String()
 					' Open the test.txt as a new entry inside the zip
-					zipOpenNewFileWithPassword( m_zipFile, fileName, BankBuf(info_b), Null, Null, Null, Null, Null, ..
+					zipOpenNewFileWithPassword( m_zipFile, f, BankBuf(info_b), Null, Null, Null, Null, Null, ..
 										Z_DEFLATED, m_compressionLevel, password, GetStreamCRC32(inFile) )
+					MemFree(p)
 				EndIf
+				MemFree(f)
 		
 				' Write the file into the zip
 				zipWriteInFileInZipUTF8( m_zipFile, LoadByteArray(inFile), Int(inSize) )
@@ -482,7 +498,9 @@ Type ZipWriter Extends ZipFile
 	End Rem
 	Method CloseZip( description:String = "" )
 		If ( m_zipFile ) Then
-			zipClose( m_zipFile, description )
+			Local d:Byte Ptr = description.ToUTF8String()
+			zipClose( m_zipFile, d )
+			MemFree(d)
 			m_zipFile = Null
 		End If
 		setName("") ' clear out the name
@@ -498,7 +516,9 @@ Type ZipReader Extends ZipFile
 		bbdoc: Opens a zip file for reading
 	End Rem
 	Method OpenZip:Int( name:String )
-		m_zipFile = unzOpen( name )
+		Local n:Byte Ptr = name.ToUTF8String()
+		m_zipFile = unzOpen( n )
+		MemFree(n)
 		
 		If ( m_zipFile ) Then
 			setName(name)  ' store the name
@@ -515,18 +535,22 @@ Type ZipReader Extends ZipFile
 	Method ExtractFile:TRamStream( fileName:String, caseSensitive:Int = False, password:String="" )
 		If ( m_zipFile ) Then
 			Local result:Int
+			Local f:Byte Ptr = fileName.ToUTF8String()
 			
 			If ( caseSensitive ) Then
-				result = unzLocateFile( m_zipFile, fileName, UNZ_CASE_CHECK )
+				result = unzLocateFile( m_zipFile, f, UNZ_CASE_CHECK )
 			Else
-				result = unzLocateFile( m_zipFile, fileName, UNZ_NO_CASE_CHECK )
+				result = unzLocateFile( m_zipFile, f, UNZ_NO_CASE_CHECK )
 			End If
+			MemFree(f)
 					
 			If ( result = UNZ_OK ) Then
 				If password.length=0
 					result = unzOpenCurrentFile( m_zipFile)
 				Else
-					result = unzOpenCurrentFilePassword( m_zipFile, password)
+					Local p:Byte Ptr = password.ToUTF8String()
+					result = unzOpenCurrentFilePassword( m_zipFile, p)
+					MemFree(p)
 				EndIf
 				
 				If ( result = UNZ_OK ) Then
@@ -582,16 +606,18 @@ Type ZipReader Extends ZipFile
 		EndIf
 		
 		If set_timestamp
+			Local o:Byte Ptr = outputFileName.ToUTF8String()
 			' update the mod timestamp
 			bmx_set_file_mod_date_time( ..
-				outputFileName, ..
+				o, ..
 				info.header.LastModDateTime.tm_hour, ..
 				info.header.LastModDateTime.tm_min, ..
 				info.header.LastModDateTime.tm_sec, ..
 				info.header.LastModDateTime.tm_mday, ..
 				info.header.LastModDateTime.tm_mon, ..
 				info.header.LastModDateTime.tm_year ..
-			)		
+			)
+			MemFree(o)
 		EndIf
 				
 		Return success
@@ -914,9 +940,9 @@ Type SZIPCentralFileHeader
 		InternalFileAttributes = ReadShort(data)
 		ExternalFileAttributes = ReadInt(data)
 		RelativeOffsetOfLocalHeader = ReadInt(data)
-		FileName = ReadString(data, FilenameLength)
-		ExtraField = ReadString(data, ExtraFieldLength)
-		FileComment = ReadString(data, CommentLength)
+		FileName = ReadString(data, FilenameLength, True)
+		ExtraField = ReadString(data, ExtraFieldLength, True)
+		FileComment = ReadString(data, CommentLength, True)
 		LastModDateTime = New tm
 		' code from: http://groups.google.com/group/comp.os.msdos.programmer/browse_thread/thread/7df01550537635b0
 		LastModDateTime.tm_sec = ((LastModFileTime & $1F) * 2)
@@ -1033,18 +1059,21 @@ Type TZipEStream Extends TStream
 	Method find_file:Int(perform_test_seek:Int = False)
 		If (reader.m_zipFile) Then
 			Local result:Int
-			
+			Local f:Byte Ptr = filename.ToUTF8String()
 			If (case_sensitive) Then
-				result = unzLocateFile(reader.m_zipFile, filename, UNZ_CASE_CHECK)
+				result = unzLocateFile(reader.m_zipFile, f, UNZ_CASE_CHECK)
 			Else
-				result = unzLocateFile(reader.m_zipFile, filename, UNZ_NO_CASE_CHECK)
+				result = unzLocateFile(reader.m_zipFile, f, UNZ_NO_CASE_CHECK)
 			End If
+			MemFree(f)
 					
 			If (result = UNZ_OK) Then
 				If Not password Then
 					result = unzOpenCurrentFile(reader.m_zipFile)
 				Else
-					result = unzOpenCurrentFilePassword(reader.m_zipFile, password)
+					Local p:Byte Ptr = password.ToUTF8String()
+					result = unzOpenCurrentFilePassword(reader.m_zipFile, p)
+					MemFree(p)
 				EndIf
 				
 				If ( result = UNZ_OK ) Then
